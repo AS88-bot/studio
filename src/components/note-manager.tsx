@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Loader2, Share2, Copy } from 'lucide-react';
+import { Check, Loader2, Share2, Copy, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
+import { enhanceNoteAction } from '@/app/actions';
 
 export function NoteManager() {
   const [noteContent, setNoteContent] = useState('');
@@ -36,6 +37,30 @@ export function NoteManager() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useAuth();
   const auth = useAuth();
+
+  const handleEnhance = () => {
+    if (!noteContent.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Empty Note',
+        description: 'Please enter some text to enhance.',
+      });
+      return;
+    }
+    startTransition(async () => {
+      const response = await enhanceNoteAction(noteContent);
+      if (response.error) {
+        toast({
+          variant: 'destructive',
+          title: 'Enhancement Failed',
+          description: response.error,
+        });
+      } else if (response.success) {
+        setNoteContent(response.success);
+        toast({ title: 'Note format enhanced successfully!' });
+      }
+    });
+  };
 
   const handleShare = async () => {
     setSharePending(true);
@@ -111,9 +136,9 @@ export function NoteManager() {
     <>
       <Card className="w-full transition-all duration-300 ease-in-out">
         <CardHeader>
-          <CardTitle className="font-headline">Share a Note</CardTitle>
+          <CardTitle className="font-headline">Notes</CardTitle>
           <CardDescription>
-            Write a note below and share it with others via a unique link.
+            Write a note, enhance its formatting, and share it with others via a unique link.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -123,19 +148,33 @@ export function NoteManager() {
             onChange={(e) => setNoteContent(e.target.value)}
             className="h-48 min-h-48 resize-none"
           />
-          <Button
-            variant="outline"
-            disabled={isSharePending || !noteContent}
-            onClick={handleShare}
-            className="w-full"
-          >
-            {isSharePending ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Share2 />
-            )}
-            Share
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              disabled={isPending || !noteContent}
+              onClick={handleEnhance}
+              className="w-full"
+            >
+              {isPending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Bot />
+              )}
+              Enhance Format
+            </Button>
+            <Button
+              disabled={isSharePending || !noteContent}
+              onClick={handleShare}
+              className="w-full"
+            >
+              {isSharePending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Share2 />
+              )}
+              Share
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
