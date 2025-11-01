@@ -31,11 +31,14 @@ Backend	Flask, Flask-CORS, Python
 AI / Processing	OpenCV, NumPy, Pillow, Tesseract OCR
 Database (optional)	Firebase / MongoDB (if used for notes storage)
 Version Control	Git & GitHub
+
 ⚙️ Installation & Setup
+
 🔧 Backend Setup
 cd backend
 pip install -r requirements.txt
 python app.py
+
 💻 Frontend Setup
 cd frontend
 npm install
@@ -59,12 +62,13 @@ studio/
 │   ├── package.json
 │
 └── README.md
+
 👩‍💻 Team
 Name	Role	GitHub
-Aisha Sultana	Backend Developer & AI Integrator	@AS88-bot
+Aisha Sultana		@AS88-bot
 
-Shaima Fatima	Frontend Developer	— 
-Safa Aman	UI/UX Designer & Notes Module Developer	—SafaAman2003
+Shaima Fatima	  shaimafatima
+Safa Aman		    SafaAman2003
 
 🌟 Future Enhancements
 
@@ -78,6 +82,7 @@ Safa Aman	UI/UX Designer & Notes Module Developer	—SafaAman2003
 
 💬 Chat-based collaboration between peers
 
+
 🏆 Project Highlights
 
 Built within 10 hours as a real-life productivity solution.
@@ -85,6 +90,7 @@ Built within 10 hours as a real-life productivity solution.
 Combines AI + real-world utility for students and professionals.
 
 Focused on clean UI, practical use, and collaboration.
+
 
 📜 License
 
