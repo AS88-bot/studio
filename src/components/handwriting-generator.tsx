@@ -1,40 +1,71 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Bot, Download, Loader2 } from 'lucide-react';
+import { Bot, Download, Loader2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { generateHandwritingAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Input } from './ui/input';
+import { cn } from '@/lib/utils';
 
 export function HandwritingGenerator() {
   const [text, setText] = useState('');
-  const [font, setFont] = useState('cursive');
-  const [slant, setSlant] = useState('normal');
-  const [thickness, setThickness] = useState('normal');
+  const [handwritingSample, setHandwritingSample] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
   const handwritingPlaceholder = PlaceHolderImages.find(p => p.id === 'handwriting-placeholder');
 
+  const handleFileChange = (selectedFile: File | null) => {
+    if (selectedFile && ['image/png', 'image/jpeg'].includes(selectedFile.type)) {
+      setHandwritingSample(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
+    } else if (selectedFile) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid File Type',
+        description: 'Please upload a PNG or JPG image for the handwriting sample.',
+      });
+      setHandwritingSample(null);
+      setPreview(null);
+    }
+  };
+
+  const handleDragEvents = (e: React.DragEvent<HTMLLabelElement>, isOver: boolean) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(isOver);
+  };
+  
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    handleDragEvents(e, false);
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) {
+      handleFileChange(droppedFile);
+    }
+  };
+
   const handleSubmit = () => {
     if (!text.trim()) {
       toast({ variant: 'destructive', title: 'Empty Text', description: 'Please enter some text to convert.' });
+      return;
+    }
+    if (!handwritingSample) {
+      toast({ variant: 'destructive', title: 'No Sample', description: 'Please upload a handwriting sample.' });
       return;
     }
 
     startTransition(async () => {
       const formData = new FormData();
       formData.append('text', text);
-      formData.append('font', font);
-      formData.append('slant', slant);
-      formData.append('thickness', thickness);
+      formData.append('handwritingSample', handwritingSample);
 
       const response = await generateHandwritingAction(formData);
       if (response.error) {
@@ -62,7 +93,7 @@ export function HandwritingGenerator() {
     <Card className="w-full transition-all duration-300 ease-in-out">
       <CardHeader>
         <CardTitle className="font-headline">Text to Handwriting</CardTitle>
-        <CardDescription>Transform your typed text into a realistic handwriting image. Customize the style below.</CardDescription>
+        <CardDescription>Transform your typed text into an image that mimics your handwriting style.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6 md:grid-cols-2">
         <div className="flex flex-col gap-4">
@@ -70,44 +101,39 @@ export function HandwritingGenerator() {
             placeholder="Type your text here..."
             value={text}
             onChange={(e) => setText(e.target.value)}
-            className="h-48 resize-none"
+            className="h-36 resize-none"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="font-style">Font Style</Label>
-              <Select value={font} onValueChange={setFont}>
-                <SelectTrigger id="font-style"><SelectValue placeholder="Font" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cursive">Cursive</SelectItem>
-                  <SelectItem value="print">Print</SelectItem>
-                  <SelectItem value="calligraphy">Calligraphy</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="slant">Slant</Label>
-              <Select value={slant} onValueChange={setSlant}>
-                <SelectTrigger id="slant"><SelectValue placeholder="Slant" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="italic">Italic</SelectItem>
-                  <SelectItem value="oblique">Oblique</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="thickness">Thickness</Label>
-              <Select value={thickness} onValueChange={setThickness}>
-                <SelectTrigger id="thickness"><SelectValue placeholder="Thickness" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <Button onClick={handleSubmit} disabled={isPending || !text}>
+          <label
+            htmlFor="handwriting-upload"
+            className={cn(
+              "relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors",
+              isDragging ? "border-primary bg-accent" : "border-border hover:border-primary/50",
+            )}
+            onDragOver={(e) => handleDragEvents(e, true)}
+            onDragLeave={(e) => handleDragEvents(e, false)}
+            onDrop={handleDrop}
+          >
+            {preview ? (
+               <Image src={preview} alt="Handwriting sample preview" fill objectFit="contain" className="rounded-md p-2" />
+            ) : (
+              <>
+                <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
+                <p className="mb-1 text-sm text-muted-foreground">
+                  <span className="font-semibold">Upload handwriting sample</span>
+                </p>
+                <p className="text-xs text-muted-foreground">PNG or JPG</p>
+              </>
+            )}
+             <Input
+              id="handwriting-upload"
+              type="file"
+              className="hidden"
+              accept="image/png, image/jpeg"
+              onChange={(e) => handleFileChange(e.target.files ? e.target.files[0] : null)}
+            />
+          </label>
+         
+          <Button onClick={handleSubmit} disabled={isPending || !text || !handwritingSample}>
             {isPending ? <Loader2 className="animate-spin" /> : <Bot />}
             Generate Handwriting
           </Button>

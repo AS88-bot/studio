@@ -59,26 +59,24 @@ export async function enhanceNoteAction(noteContent: string) {
 
 const handwritingSchema = z.object({
   text: z.string().min(1, 'Text cannot be empty.'),
-  font: z.string().optional(),
-  slant: z.string().optional(),
-  thickness: z.string().optional(),
+  handwritingSample: z.instanceof(File).refine((file) => file.size > 0, "File is required."),
 });
 
 export async function generateHandwritingAction(formData: FormData) {
   try {
     const validatedFields = handwritingSchema.safeParse({
       text: formData.get('text'),
-      font: formData.get('font'),
-      slant: formData.get('slant'),
-      thickness: formData.get('thickness'),
+      handwritingSample: formData.get('handwritingSample'),
     });
 
     if (!validatedFields.success) {
-      return { error: 'Invalid input for handwriting generation.' };
+      return { error: 'Invalid input for handwriting generation. Ensure text and a sample are provided.' };
     }
 
-    const { text, font, slant, thickness } = validatedFields.data;
-    const result = await textToHandwritingConversion({ text, font, slant, thickness });
+    const { text, handwritingSample } = validatedFields.data;
+    const handwritingSampleDataUri = await fileToDataUri(handwritingSample);
+    
+    const result = await textToHandwritingConversion({ text, handwritingSampleDataUri });
     
     return { success: result.handwritingDataUri };
   } catch (error) {
