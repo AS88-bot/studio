@@ -89,11 +89,6 @@
           "type": "string",
           "description": "The content of the note."
         },
-        "shareableURL": {
-          "type": "string",
-          "description": "A secure, unique URL to share with others to view the note.",
-          "format": "uri"
-        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp indicating when the note was created.",
@@ -105,7 +100,6 @@
         "userId",
         "title",
         "content",
-        "shareableURL",
         "createdAt"
       ]
     },
@@ -244,7 +238,7 @@
           "schema": {
             "$ref": "#/backend/entities/Note"
           },
-          "description": "Stores publicly shared notes. Includes denormalized 'userId' for authorization independence.",
+          "description": "Stores publicly available notes visible to all users. Includes denormalized 'userId' for authorization.",
           "params": [
             {
               "name": "noteId",

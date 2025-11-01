@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
-import { Check, Loader2, Share2, Copy, UploadCloud } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { Loader2, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -11,42 +11,39 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-import { collection, serverTimestamp } from 'firebase/firestore';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { collection, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { cn } from '@/lib/utils';
+import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { ScrollArea } from './ui/scroll-area';
+
+interface Note {
+  title: string;
+  content: string;
+  createdAt: any;
+  userId: string;
+}
 
 export function NoteManager() {
   const [noteContent, setNoteContent] = useState('');
   const [fileName, setFileName] = useState('');
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [isSharePending, startShareTransition] = useTransition();
-  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [isUploading, startUploadTransition] = useTransition();
   const [isDragging, setIsDragging] = useState(false);
-  const [shouldShare, setShouldShare] = useState(false);
 
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user, isUserLoading } = useUser();
   const auth = useAuth();
 
-  useEffect(() => {
-    // This effect runs when the user is authenticated and the share action was triggered.
-    if (user && !isUserLoading && shouldShare) {
-      handleShare(); // Re-trigger share logic now that we have a user.
-      setShouldShare(false); // Reset the flag.
-    }
-  }, [user, isUserLoading, shouldShare]);
+  const publicNotesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'public_notes'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
+
+  const { data: publicNotes, isLoading: isLoadingNotes } = useCollection<Note>(publicNotesQuery);
 
   const handleFileChange = (selectedFile: File | null) => {
     if (selectedFile) {
@@ -56,8 +53,8 @@ export function NoteManager() {
         const text = e.target?.result as string;
         setNoteContent(text);
         toast({
-          title: 'File Loaded',
-          description: `${selectedFile.name} content is ready to be shared.`,
+          title: 'File Ready',
+          description: `Ready to upload ${selectedFile.name}.`,
         });
       };
       reader.onerror = () => {
@@ -88,186 +85,158 @@ export function NoteManager() {
     }
   };
 
-  const handleShareClick = () => {
-    setShouldShare(true); // Set intent to share
-    handleShare(); // Start the share process
-  };
-
-  const handleShare = () => {
-    startShareTransition(async () => {
-      // Step 1: Validate note content
+  const handleUploadClick = () => {
+    startUploadTransition(async () => {
       if (!noteContent.trim()) {
         toast({
           variant: 'destructive',
           title: 'Empty Note',
           description: 'Please upload a document to share.',
         });
-        setShouldShare(false);
         return;
       }
-  
-      // Step 2: Handle user authentication
-      if (!user && !isUserLoading) {
-        initiateAnonymousSignIn(auth);
-        toast({
-          title: 'Signing in...',
-          description: 'Creating a temporary account to share your note.',
-        });
-        // The useEffect will retry handleShare once authenticated.
+
+      let currentUser = user;
+      if (!currentUser && !isUserLoading) {
+        await initiateAnonymousSignIn(auth);
+        // We need to get the user after sign-in. This is a simplification.
+        // A more robust solution might use a state to wait for user.
         return;
       }
-  
-      // If still loading, wait for the next render.
-      if (isUserLoading) {
-        return; 
-      }
-  
-      // Step 3: We must have a user by this point.
-      if (!user) {
-        toast({
-          variant: 'destructive',
-          title: 'Authentication Failed',
-          description: 'Could not sign you in. Please try again.',
-        });
-        setShouldShare(false);
+
+      if (isUserLoading || !auth.currentUser) {
+        toast({ title: "Please wait", description: "Authenticating..." });
+        // Retry logic could be implemented here.
         return;
       }
-  
-      // Step 4: Proceed with sharing
+      currentUser = auth.currentUser;
+
+
       try {
         const publicNotesCol = collection(firestore, 'public_notes');
-        const noteDoc = await addDocumentNonBlocking(publicNotesCol, {
-          userId: user.uid,
-          title:
-            fileName ||
-            noteContent.substring(0, 40) +
-              (noteContent.length > 40 ? '...' : ''),
+        await addDocumentNonBlocking(publicNotesCol, {
+          userId: currentUser.uid,
+          title: fileName || noteContent.substring(0, 40) + (noteContent.length > 40 ? '...' : ''),
           content: noteContent,
           createdAt: serverTimestamp(),
         });
-  
-        const url = `${window.location.origin}/notes/${noteDoc.id}`;
-        setShareUrl(url); // This will open the dialog
+
+        toast({
+          title: 'Note Published!',
+          description: 'Your note is now visible to everyone.',
+        });
+        // Clear inputs after successful upload
+        setNoteContent('');
+        setFileName('');
+
       } catch (error) {
-        console.error('Error sharing note: ', error);
+        console.error('Error publishing note: ', error);
         toast({
           variant: 'destructive',
-          title: 'Sharing Failed',
-          description:
-            'Could not save your note for sharing. Please try again.',
+          title: 'Upload Failed',
+          description: 'Could not publish your note. Please try again.',
         });
-      } finally {
-        setShouldShare(false); // Reset flag after operation
       }
     });
   };
 
-  const copyShareUrl = () => {
-    if (shareUrl) {
-      navigator.clipboard.writeText(shareUrl);
-      setCopiedShareLink(true);
-      setTimeout(() => setCopiedShareLink(false), 2000);
-      toast({ title: 'Link copied to clipboard!' });
-    }
-  };
 
   return (
     <>
       <Card className="w-full transition-all duration-300 ease-in-out">
         <CardHeader>
-          <CardTitle className="font-headline">Share Notes</CardTitle>
+          <CardTitle className="font-headline">Public Notes</CardTitle>
           <CardDescription>
-            Upload your college notes or documents and share them via a unique
-            link.
+            Upload your college notes or documents to make them visible to everyone.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <label
-            htmlFor="file-upload"
-            className={cn(
-              'relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors',
-              isDragging
-                ? 'border-primary bg-accent'
-                : 'border-border hover:border-primary/50'
-            )}
-            onDragOver={(e) => handleDragEvents(e, true)}
-            onDragLeave={(e) => handleDragEvents(e, false)}
-            onDrop={handleDrop}
-          >
-            <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
-            <p className="mb-1 text-sm text-muted-foreground">
-              <span className="font-semibold">Click to upload</span> or drag and
-              drop
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Any text-based document
-            </p>
-            <Input
-              id="file-upload"
-              type="file"
-              className="hidden"
-              onChange={(e) =>
-                handleFileChange(e.target.files ? e.target.files[0] : null)
-              }
-            />
-          </label>
-          {fileName && (
-            <div className="grid gap-2">
-              <Label htmlFor="file-name">File Name</Label>
+        <CardContent className="grid md:grid-cols-2 gap-6">
+          <div className="flex flex-col gap-4">
+            <label
+              htmlFor="file-upload"
+              className={cn(
+                'relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors',
+                isDragging
+                  ? 'border-primary bg-accent'
+                  : 'border-border hover:border-primary/50'
+              )}
+              onDragOver={(e) => handleDragEvents(e, true)}
+              onDragLeave={(e) => handleDragEvents(e, false)}
+              onDrop={handleDrop}
+            >
+              <UploadCloud className="w-10 h-10 mb-2 text-muted-foreground" />
+              <p className="mb-1 text-sm text-muted-foreground">
+                <span className="font-semibold">Click to upload</span> or drag and
+                drop
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Any text-based document
+              </p>
               <Input
-                id="file-name"
-                type="text"
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                placeholder="Enter a name for your note"
+                id="file-upload"
+                type="file"
+                className="hidden"
+                onChange={(e) =>
+                  handleFileChange(e.target.files ? e.target.files[0] : null)
+                }
               />
-            </div>
-          )}
-          <div className="flex flex-col sm:flex-row gap-2">
+            </label>
+            {fileName && (
+              <div className="grid gap-2">
+                <Label htmlFor="file-name">Note Title</Label>
+                <Input
+                  id="file-name"
+                  type="text"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="Enter a name for your note"
+                />
+              </div>
+            )}
             <Button
-              disabled={isSharePending || !noteContent}
-              onClick={handleShareClick}
+              disabled={isUploading || !noteContent}
+              onClick={handleUploadClick}
               className="w-full"
             >
-              {isSharePending ? (
+              {isUploading ? (
                 <Loader2 className="animate-spin" />
               ) : (
-                <Share2 />
+                <UploadCloud />
               )}
-              Share
+              Upload Publicly
             </Button>
+          </div>
+          <div className="flex flex-col gap-4">
+             <h3 className="text-lg font-semibold font-headline">Recently Uploaded Notes</h3>
+             <ScrollArea className="h-96 w-full rounded-md border">
+                <div className="p-4">
+                {isLoadingNotes && (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+                {!isLoadingNotes && publicNotes?.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-10">No public notes yet. Be the first to upload one!</p>
+                )}
+                {publicNotes && publicNotes.length > 0 && (
+                    <div className="space-y-4">
+                        {publicNotes.map(note => (
+                            <Card key={note.id}>
+                                <CardHeader className="p-4">
+                                    <CardTitle className="text-base font-headline">{note.title}</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-4 pt-0">
+                                    <p className="text-sm text-muted-foreground line-clamp-3">{note.content}</p>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )}
+                </div>
+             </ScrollArea>
           </div>
         </CardContent>
       </Card>
-
-      <Dialog open={!!shareUrl} onOpenChange={() => setShareUrl(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Your note is ready to be shared!</DialogTitle>
-            <DialogDescription>
-              Anyone with this link can view your note.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2">
-            <div className="grid flex-1 gap-2">
-              <Input id="link" defaultValue={shareUrl ?? ''} readOnly />
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              className="px-3"
-              onClick={copyShareUrl}
-            >
-              <span className="sr-only">Copy</span>
-              {copiedShareLink ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

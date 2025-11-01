@@ -31,7 +31,7 @@ export default function SharedNotePage() {
         <div className="w-full max-w-3xl">
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">{note?.title || 'Shared Note'}</CardTitle>
+              <CardTitle className="font-headline">{note?.title || 'Public Note'}</CardTitle>
             </CardHeader>
             <CardContent>
               {isLoading && (
@@ -41,7 +41,7 @@ export default function SharedNotePage() {
               )}
               {error && <p className="text-destructive">Error loading note: {error.message}</p>}
               {!isLoading && !note && !error && (
-                <p className="text-muted-foreground">Note not found.</p>
+                <p className="text-muted-foreground">Note not found or you do not have permission to view it.</p>
               )}
               {note && (
                 <ScrollArea className="h-96 w-full rounded-md border bg-muted/30 p-4">
