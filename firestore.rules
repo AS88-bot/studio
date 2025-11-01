@@ -1,0 +1,143 @@
+/**
+ * @fileoverview Firestore Security Rules for SignText Converter.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for private data while allowing public read access to shared notes.
+ * User data and private notes are stored under their respective user ID, ensuring only the owner can modify them.
+ * Public notes are stored in a separate top-level collection, enabling public read access with owner-only write access.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles.  This is the root for all user-owned data.
+ * - /users/{userId}/signatures/{signatureId}: Stores user's signatures.
+ * - /users/{userId}/handwriting_conversions/{conversionId}: Stores user's handwriting conversions.
+ * - /users/{userId}/notes/{noteId}: Stores user's private notes.
+ * - /public_notes/{noteId}: Stores publicly shared notes. Includes denormalized 'userId' for authorization independence.
+ *
+ * Key Security Decisions:
+ * - Users can only create, read, update, and delete their own data under their respective /users/{userId} path.
+ * - Public notes are readable by anyone, but only the owner can modify or delete them. The owner's ID is denormalized into the public_notes document.
+ * - User listing is not allowed for privacy.
+ * - Data validation is minimized in this prototyping phase to focus on authorization.
+ *
+ * Denormalization for Authorization:
+ * - The `public_notes` collection denormalizes the `userId` field to allow for owner-only write access without additional `get()` calls.
+ *
+ * Structural Segregation:
+ * - Private notes are stored under /users/{userId}/notes/{noteId}, while public notes are stored in /public_notes/{noteId}.
+ *   This segregation simplifies read access rules and prevents accidental exposure of private notes.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return {boolean} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the authenticated user ID matches the provided user ID.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user IDs match, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the existing document.
+     * @param {string} userId The user ID to compare against the authenticated user's ID.
+     * @return {boolean} True if the user IDs match and the resource exists, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Rules for user profiles.
+     * @path /users/{userId}
+     * @allow (create) User with ID 'user123' creates their profile: request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' retrieves their profile: request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create profile for 'user123': request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' tries to update profile for 'user123': request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes.  Allows owner to read.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // User listing is not permitted.
+      allow create: if isOwner(userId) && request.resource.data.id == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user signatures.
+     * @path /users/{userId}/signatures/{signatureId}
+     * @allow (create) User with ID 'user123' creates a signature: request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' retrieves their signature: request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create signature for 'user123': request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' tries to update signature for 'user123': request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes.  Allows owner to read.
+     */
+    match /users/{userId}/signatures/{signatureId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user handwriting conversions.
+     * @path /users/{userId}/handwriting_conversions/{conversionId}
+     * @allow (create) User with ID 'user123' creates a conversion: request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' retrieves their conversion: request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create conversion for 'user123': request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' tries to update conversion for 'user123': request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes.  Allows owner to read.
+     */
+    match /users/{userId}/handwriting_conversions/{conversionId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for user's private notes.
+     * @path /users/{userId}/notes/{noteId}
+     * @allow (create) User with ID 'user123' creates a note: request.auth.uid == 'user123'
+     * @allow (get) User with ID 'user123' retrieves their note: request.auth.uid == 'user123'
+     * @deny (create) User with ID 'user456' tries to create note for 'user123': request.auth.uid == 'user456'
+     * @deny (update) User with ID 'user456' tries to update note for 'user123': request.auth.uid == 'user456'
+     * @principle Enforces document ownership for writes.  Allows owner to read.
+     */
+    match /users/{userId}/notes/{noteId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId; // Enforce immutability of userId
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Rules for publicly shared notes.
+     * @path /public_notes/{noteId}
+     * @allow (get) Anyone can read a public note.
+     * @allow (create) User with ID 'user123' creates a public note with ownerId 'user123': request.auth.uid == 'user123' && request.resource.data.userId == 'user123'
+     * @deny (update) User with ID 'user456' tries to update a public note owned by 'user123': request.auth.uid == 'user456'
+     * @principle Public read access with owner-only writes, enforced via the 'userId' field in the document.
+     */
+    match /public_notes/{noteId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.userId);
+      allow delete: if isExistingOwner(resource.data.userId);
+    }
+  }
+}

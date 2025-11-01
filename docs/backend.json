@@ -1,0 +1,259 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the SignText Converter application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user.",
+          "format": "uuid"
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the user account was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "createdAt"
+      ]
+    },
+    "Signature": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Signature",
+      "type": "object",
+      "description": "Represents a user's signature stored as text.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the signature.",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Signature)"
+        },
+        "signatureText": {
+          "type": "string",
+          "description": "The text representation of the signature."
+        },
+        "originalImageURL": {
+          "type": "string",
+          "description": "URL where the originally uploaded image is stored",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the signature was generated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "signatureText",
+        "originalImageURL",
+        "createdAt"
+      ]
+    },
+    "Note": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Note",
+      "type": "object",
+      "description": "Represents a user's note that can be shared.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the note.",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Note)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the note."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the note."
+        },
+        "shareableURL": {
+          "type": "string",
+          "description": "A secure, unique URL to share with others to view the note.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the note was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "content",
+        "shareableURL",
+        "createdAt"
+      ]
+    },
+    "HandwritingConversion": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "HandwritingConversion",
+      "type": "object",
+      "description": "Represents a text-to-handwriting conversion request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the conversion request.",
+          "format": "uuid"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N HandwritingConversion)"
+        },
+        "inputText": {
+          "type": "string",
+          "description": "The text to be converted to handwriting."
+        },
+        "handwritingStyle": {
+          "type": "string",
+          "description": "The selected handwriting style (e.g., font, slant, thickness)."
+        },
+        "outputImageURL": {
+          "type": "string",
+          "description": "URL where the generated handwriting image is stored.",
+          "format": "uri"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the conversion was performed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "inputText",
+        "handwritingStyle",
+        "outputImageURL",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles.  Root path for all user-owned data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/signatures/{signatureId}",
+        "definition": {
+          "entityName": "Signature",
+          "schema": {
+            "$ref": "#/backend/entities/Signature"
+          },
+          "description": "Stores user's signatures.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "signatureId",
+              "description": "The unique identifier of the signature."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/handwriting_conversions/{conversionId}",
+        "definition": {
+          "entityName": "HandwritingConversion",
+          "schema": {
+            "$ref": "#/backend/entities/HandwritingConversion"
+          },
+          "description": "Stores user's handwriting conversions.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "conversionId",
+              "description": "The unique identifier of the handwriting conversion."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/notes/{noteId}",
+        "definition": {
+          "entityName": "Note",
+          "schema": {
+            "$ref": "#/backend/entities/Note"
+          },
+          "description": "Stores user's private notes. Notes that are not intended to be shared publicly are stored here.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "noteId",
+              "description": "The unique identifier of the note."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/public_notes/{noteId}",
+        "definition": {
+          "entityName": "Note",
+          "schema": {
+            "$ref": "#/backend/entities/Note"
+          },
+          "description": "Stores publicly shared notes. Includes denormalized 'userId' for authorization independence.",
+          "params": [
+            {
+              "name": "noteId",
+              "description": "The unique identifier of the public note."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to ensure security, scalability, and ease of debugging, adhering to the core design principles of Authorization Independence, Clarity of Intent, DBAC (Database-Based Access Control), and QAPs (Rules are not Filters). It also adheres to the principle that all documents in a single collection must share a homogeneous security posture. \n\nAuthorization Independence is achieved through denormalization. Specifically, for shared notes, the 'userId' (owner) is copied into the document itself. This avoids the need for `get()` calls in security rules to verify ownership, enabling atomic operations (transactions/batches) and simplifying debugging.\n\nThe structure supports QAPs by segregating user-owned data (signatures, handwriting conversions, and private notes) under `/users/{userId}` paths. Shared notes are stored in a dedicated `/public_notes` collection. This segregation allows for efficient and secure list operations based on ownership or public access.\n\nThe membership map pattern is not directly used in this design because the primary sharing mechanism is via a shareable URL, implying read-only access for those who have the URL. If collaborative editing features were added in the future, the `members` map would be introduced and denormalized.\n\nThe design uses explicit state modeling (though not explicitly present in the data entities) by suggesting a `status` field if notes require a lifecycle (e.g., `DRAFT`, `PUBLISHED`).\n\nIn this design, the HandWritingConversion option has been retained though there is a request to remove it because it is part of the entity schema and its path and security rules are the same as before. The client app can simply hide or disable the functionality. Removing the entities would violate the data consistency invariants of the system."
+  }
+}
