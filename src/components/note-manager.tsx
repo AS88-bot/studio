@@ -10,7 +10,6 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useFirestore } from '@/firebase';
 import { addDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -25,6 +24,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
 import { cn } from '@/lib/utils';
+import { Label } from './ui/label';
 
 export function NoteManager() {
   const [noteContent, setNoteContent] = useState('');
@@ -167,7 +167,6 @@ export function NoteManager() {
               <span className="font-semibold">Click to upload</span> or drag and drop
             </p>
             <p className="text-xs text-muted-foreground">Any text-based document</p>
-            {fileName && <p className="mt-2 text-sm font-medium text-foreground">{fileName}</p>}
             <Input
               id="file-upload"
               type="file"
@@ -175,6 +174,18 @@ export function NoteManager() {
               onChange={(e) => handleFileChange(e.target.files ? e.target.files[0] : null)}
             />
           </label>
+          {fileName && (
+            <div className="grid gap-2">
+              <Label htmlFor="file-name">File Name</Label>
+              <Input
+                id="file-name"
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                placeholder="Enter a name for your note"
+              />
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row gap-2">
             <Button
               disabled={isSharePending || !noteContent}
