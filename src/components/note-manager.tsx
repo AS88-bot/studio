@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Loader2, Share2, Copy, Bot } from 'lucide-react';
+import { Check, Loader2, Share2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -24,11 +24,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { initiateAnonymousSignIn } from '@/firebase/non-blocking-login';
-import { enhanceNoteAction } from '@/app/actions';
 
 export function NoteManager() {
   const [noteContent, setNoteContent] = useState('');
-  const [isPending, startTransition] = useTransition();
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isSharePending, setSharePending] = useState(false);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
@@ -37,30 +35,6 @@ export function NoteManager() {
   const firestore = useFirestore();
   const { user, isUserLoading } = useAuth();
   const auth = useAuth();
-
-  const handleEnhance = () => {
-    if (!noteContent.trim()) {
-      toast({
-        variant: 'destructive',
-        title: 'Empty Note',
-        description: 'Please enter some text to enhance.',
-      });
-      return;
-    }
-    startTransition(async () => {
-      const response = await enhanceNoteAction(noteContent);
-      if (response.error) {
-        toast({
-          variant: 'destructive',
-          title: 'Enhancement Failed',
-          description: response.error,
-        });
-      } else if (response.success) {
-        setNoteContent(response.success);
-        toast({ title: 'Note format enhanced successfully!' });
-      }
-    });
-  };
 
   const handleShare = async () => {
     setSharePending(true);
@@ -138,7 +112,7 @@ export function NoteManager() {
         <CardHeader>
           <CardTitle className="font-headline">Notes</CardTitle>
           <CardDescription>
-            Write a note, enhance its formatting, and share it with others via a unique link.
+            Write a note and share it with others via a unique link.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -149,19 +123,6 @@ export function NoteManager() {
             className="h-48 min-h-48 resize-none"
           />
           <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              disabled={isPending || !noteContent}
-              onClick={handleEnhance}
-              className="w-full"
-            >
-              {isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <Bot />
-              )}
-              Enhance Format
-            </Button>
             <Button
               disabled={isSharePending || !noteContent}
               onClick={handleShare}
